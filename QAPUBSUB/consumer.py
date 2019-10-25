@@ -12,8 +12,8 @@ class subscriber(base_ps):
         base_ps {[type]} -- [description]
     """
 
-    def __init__(self, host=qapubsub_ip, port=qapubsub_port, user=qapubsub_user, password=qapubsub_password, exchange='', queue='qa_sub.{}'.format(random.randint(0, 1000000)), routing_key='default'):
-        super().__init__(host=host, port=port, user=user,
+    def __init__(self, host=qapubsub_ip, port=qapubsub_port, user=qapubsub_user, password=qapubsub_password, exchange='', vhost='/', queue='qa_sub.{}'.format(random.randint(0, 1000000)), routing_key='default'):
+        super().__init__(host=host, port=port, user=user, vhost=vhost,
                          password=password, exchange=exchange)
         self.queue = queue
         self.channel.exchange_declare(exchange=exchange,
@@ -35,8 +35,6 @@ class subscriber(base_ps):
     def subscribe(self):
         self.channel.basic_consume(self.queue, self.callback, auto_ack=True)
         self.channel.start_consuming()
-        # self.channel.basic_consume(
-        #     self.callback, queue=self.queue_name, no_ack=True)  # 消息接收
 
     def start(self):
         try:
@@ -53,31 +51,42 @@ class subscriber_routing(base_ps):
         base_ps {[type]} -- [description]
     """
 
-    def __init__(self, host=qapubsub_ip, port=qapubsub_port, user=qapubsub_user, password=qapubsub_password, exchange='', queue='qa_sub.{}'.format(random.randint(0, 1000000)), routing_key='default'):
-        super().__init__(host=host, port=port, user=user,
+    def __init__(self, host=qapubsub_ip, port=qapubsub_port, user=qapubsub_user, password=qapubsub_password,
+                 exchange='', queue='qa_sub.{}'.format(random.randint(0, 1000000)),
+                 routing_key='default', durable=False, vhost='/'):
+        super().__init__(host=host, port=port, user=user, vhost=vhost,
                          password=password, exchange=exchange)
         self.queue = queue
         self.channel.exchange_declare(exchange=exchange,
                                       exchange_type='direct',
                                       passive=False,
-                                      durable=False,
+                                      durable=durable,
                                       auto_delete=False)
         self.routing_key = routing_key
         self.queue = self.channel.queue_declare(
-            queue='', auto_delete=True, exclusive=True).method.queue
+            queue='', auto_delete=True, exclusive=True, durable=durable).method.queue
         self.channel.queue_bind(queue=self.queue, exchange=exchange,
                                 routing_key=self.routing_key)          # 队列名采用服务端分配的临时队列
         # self.channel.basic_qos(prefetch_count=1)
+        self.c = []
+    def add_sub(self, exchange, routing_key):
+        # 非常不优雅的多订阅实现
+        u = subscriber_routing(exchange=exchange, routing_key=routing_key)
+        u.callback = self.callback
 
+        import threading
+        self.c.append(threading.Thread(
+            target=u.start, daemon=True, group=None))
     def callback(self, chan, method_frame, _header_frame, body, userdata=None):
         print(1)
         print(" [x] %r" % body)
 
     def subscribe(self):
+        if len(self.c) > 0:
+            [item.start() for item in self.c]
+
         self.channel.basic_consume(self.queue, self.callback, auto_ack=True)
         self.channel.start_consuming()
-        # self.channel.basic_consume(
-        #     self.callback, queue=self.queue_name, no_ack=True)  # 消息接收
 
     def start(self):
         try:
@@ -94,14 +103,16 @@ class subscriber_topic(base_ps):
         base_ps {[type]} -- [description]
     """
 
-    def __init__(self, host=qapubsub_ip, port=qapubsub_port, user=qapubsub_user, password=qapubsub_password, exchange='', queue='qa_sub.{}'.format(random.randint(0, 1000000)), routing_key='default'):
-        super().__init__(host=host, port=port, user=user,
+    def __init__(self, host=qapubsub_ip, port=qapubsub_port, user=qapubsub_user, password=qapubsub_password,
+                 exchange='', queue='qa_sub.{}'.format(random.randint(0, 1000000)), routing_key='default',
+                 durable=False, vhost='/'):
+        super().__init__(host=host, port=port, user=user, vhost=vhost,
                          password=password, exchange=exchange)
         self.queue = queue
         self.channel.exchange_declare(exchange=exchange,
                                       exchange_type='topic',
                                       passive=False,
-                                      durable=False,
+                                      durable=durable,
                                       auto_delete=False)
         self.routing_key = routing_key
         self.queue = self.channel.queue_declare(
@@ -109,20 +120,31 @@ class subscriber_topic(base_ps):
         self.channel.queue_bind(queue=self.queue, exchange=exchange,
                                 routing_key=self.routing_key)          # 队列名采用服务端分配的临时队列
         # self.channel.basic_qos(prefetch_count=1)
+        self.c = []
+
+    def add_sub(self, exchange, routing_key):
+        # 非常不优雅的多订阅实现
+        u = subscriber_topic(exchange=exchange, routing_key=routing_key)
+        u.callback = self.callback
+
+        import threading
+        self.c.append(threading.Thread(
+            target=u.start, daemon=True, group=None))
 
     def callback(self, chan, method_frame, _header_frame, body, userdata=None):
         print(1)
         print(" [x] %r" % body)
 
     def subscribe(self):
+        if len(self.c) > 0:
+            [item.start() for item in self.c]
         self.channel.basic_consume(self.queue, self.callback, auto_ack=True)
         self.channel.start_consuming()
-        # self.channel.basic_consume(
-        #     self.callback, queue=self.queue_name, no_ack=True)  # 消息接收
 
     def start(self):
         try:
             self.subscribe()
+
         except Exception as e:
             print(e)
             self.start()
