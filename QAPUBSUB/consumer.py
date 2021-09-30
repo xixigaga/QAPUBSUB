@@ -7,7 +7,6 @@ import random
 
 class subscriber(base_ps):
     """new version (pika 1.0+) client for sub/quantaxis IO BUS
-
     Arguments:
         base_ps {[type]} -- [description]
     """
@@ -15,7 +14,6 @@ class subscriber(base_ps):
     def __init__(self, host=qapubsub_ip, port=qapubsub_port, user=qapubsub_user, password=qapubsub_password, exchange='', vhost='/', queue='qa_sub.{}'.format(random.randint(0, 1000000)), routing_key='default'):
         super().__init__(host=host, port=port, user=user, vhost=vhost,
                          password=password, exchange=exchange)
-        self.queue = queue
         self.channel.exchange_declare(exchange=exchange,
                                       exchange_type='fanout',
                                       passive=False,
@@ -23,7 +21,7 @@ class subscriber(base_ps):
                                       auto_delete=False)
         self.routing_key = routing_key
         self.queue = self.channel.queue_declare(
-            queue='', auto_delete=True, exclusive=True).method.queue
+            queue=queue, auto_delete=True, exclusive=True).method.queue
         self.channel.queue_bind(queue=self.queue, exchange=exchange,
                                 routing_key='qa_routing')          # 队列名采用服务端分配的临时队列
         # self.channel.basic_qos(prefetch_count=1)
@@ -61,7 +59,6 @@ class subscriber_routing(base_ps):
                  routing_key='default', durable=False, vhost='/'):
         super().__init__(host=host, port=port, user=user, vhost=vhost,
                          password=password, exchange=exchange)
-        self.queue = queue
         self.channel.exchange_declare(exchange=exchange,
                                       exchange_type='direct',
                                       passive=False,
@@ -69,7 +66,7 @@ class subscriber_routing(base_ps):
                                       auto_delete=False)
         self.routing_key = routing_key
         self.queue = self.channel.queue_declare(
-            queue='', auto_delete=True, exclusive=True, durable=durable).method.queue
+            queue=queue, auto_delete=True, exclusive=True, durable=durable).method.queue
         self.channel.queue_bind(queue=self.queue, exchange=exchange,
                                 routing_key=self.routing_key)          # 队列名采用服务端分配的临时队列
         # self.channel.basic_qos(prefetch_count=1)
@@ -111,7 +108,6 @@ class subscriber_topic(base_ps):
                  durable=False, vhost='/'):
         super().__init__(host=host, port=port, user=user, vhost=vhost,
                          password=password, exchange=exchange)
-        self.queue = queue
         self.channel.exchange_declare(exchange=exchange,
                                       exchange_type='topic',
                                       passive=False,
@@ -119,7 +115,7 @@ class subscriber_topic(base_ps):
                                       auto_delete=False)
         self.routing_key = routing_key
         self.queue = self.channel.queue_declare(
-            queue='', auto_delete=True, exclusive=True).method.queue
+            queue=queue, auto_delete=True, exclusive=True).method.queue
         self.channel.queue_bind(queue=self.queue, exchange=exchange,
                                 routing_key=self.routing_key)          # 队列名采用服务端分配的临时队列
         # self.channel.basic_qos(prefetch_count=1)
